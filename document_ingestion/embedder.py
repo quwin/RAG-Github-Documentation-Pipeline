@@ -1,54 +1,110 @@
-from __future__ import annotations
-import getpass
 import os
-from langchain_openai import OpenAIEmbeddings
+import getpass
+from uuid import uuid4
+from sparse_encoder import compute_sparse_vector
 from langchain_core.documents import Document
-from chunker import stable_chunk_id
-from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+from qdrant_client import QdrantClient, models
+from qdrant_client.http.models import (
+    Distance,
+    SparseIndexParams,
+    SparseVector,
+    SparseVectorParams,
+    VectorParams,
+)
+
+DENSE_VECTOR_NAME = "text-dense"
+SPARSE_VECTOR_NAME = "text-sparse"
 
 def embed_unique_chunks(
     chunks: list[Document],
     collection_name: str = "github_docs",
-    persist_dir: str = "./chroma_langchain_db",
     similarity_threshold: float = 0.95,
-) -> list[Document]:
+    model_id = "naver/splade-cocondenser-ensembledistil"
+) -> tuple[QdrantClient, OpenAIEmbeddings]:
     if not chunks:
         raise ValueError("No documents provided to embed.")
-    if not os.getenv("OPENAI_API_KEY") or not os.getenv("CHROMA_OPENAI_API_KEY"):
+    if not os.getenv("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
+    if not os.getenv("QDRANT_API_KEY"):
+        os.environ["QDRANT_API_KEY"] = getpass.getpass("Enter your Qdrant API key: ")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma(
-        collection_name=collection_name,
-        embedding_function=embeddings,
-        persist_directory=persist_dir,
+    client = QdrantClient(
+        url="https://f028c8c9-ff23-4d61-a751-7dd10e1c066a.us-east-1-1.aws.cloud.qdrant.io",
+        api_key=os.getenv("QDRANT_API_KEY"),
+        timeout=120,
     )
-    unique_chunks = []
+    vector_size = 1536
+    if not client.collection_exists(collection_name):
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config={
+                DENSE_VECTOR_NAME: VectorParams(
+                    size=vector_size,
+                    distance=Distance.COSINE,
+                    on_disk=True,
+                )
+            },
+            sparse_vectors_config={
+                SPARSE_VECTOR_NAME: SparseVectorParams(
+                    index=SparseIndexParams(on_disk=True)
+                )
+            },
+        )
+    unique_chunks: list[Document] = []
     skipped = []
     for chunk in chunks:
-        matches = vector_store.similarity_search_with_score(
-            chunk.page_content,
-            k=1,
+        chunk_id = getattr(chunk, "id", None) or str(uuid4())
+
+        dense_vector = embeddings.embed_query(chunk.page_content)
+        sparse_vector = compute_sparse_vector(chunk.page_content, model_id)
+
+        # Dedupe search using dense vector only.
+        # This avoids needing LangChain's QdrantVectorStore for ingestion.
+        # TODO: Check if it's more effecient to use the sparse vector for this
+        existing = client.query_points(
+            collection_name=collection_name,
+            query=dense_vector,
+            using=DENSE_VECTOR_NAME,
+            limit=1,
+            with_payload=True,
         )
-        if matches:
-            matched_doc, distance = matches[0]
-
-            similarity = 1 - distance
-
+        if existing.points:
+            best = existing.points[0]
+            similarity = best.score
             if similarity >= similarity_threshold:
                 skipped.append(
                     {
                         "reason": "near_duplicate",
-                        "chunk_id": getattr(chunk, "id", None),
-                        "matched_source": matched_doc.metadata.get("source_path"),
+                        "chunk_id": chunk_id,
+                        "matched_id": best.id,
+                        "matched_source": (
+                            best.payload.get("metadata", {}).get("source_path")
+                            if best.payload
+                            else None
+                        ),
                         "similarity": similarity,
                     }
                 )
                 continue
+
         unique_chunks.append(chunk)
-        vector_store.add_documents(
-            documents=[chunk],
-            ids=[chunk.id],
-            metadatas=[chunk.metadata]
+        point = models.PointStruct(
+            id=chunk_id,
+            vector={
+                DENSE_VECTOR_NAME: dense_vector,
+                SPARSE_VECTOR_NAME: sparse_vector,
+            },
+            payload={
+                "page_content": chunk.page_content,
+                "metadata": chunk.metadata,
+            },
         )
-    print(f"Skipped {skipped.count} chunks:\n{skipped}")
-    return unique_chunks
+        client.upsert(
+            collection_name=collection_name,
+            points=[point],
+            wait=True,
+        )
+    print(f"Inserted {len(unique_chunks)} chunks.")
+    print(f"Skipped {len(skipped)} near-duplicates.")
+    return (client, embeddings)

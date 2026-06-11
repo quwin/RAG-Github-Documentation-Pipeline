@@ -1,9 +1,9 @@
 from pathlib import Path
 import json
-import shutil
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from urllib.parse import urlparse
+from langchain_core.documents import Document
 
 # Example Usage:
 
@@ -64,15 +64,6 @@ EXCLUDE_EXTENSIONS = {
     ".dll",
     ".so",
 }
-
-@dataclass
-class RawDocument:
-    repo_url: str
-    repo_name: str
-    source_path: str
-    file_type: str
-    content: str
-    metadata: dict
 
 
 def validate_github_url(repo_url: str) -> None:
@@ -170,7 +161,7 @@ def extract_markdown_headings(text: str) -> list[str]:
     return headings
 
 
-def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str = "master") -> list[RawDocument]:
+def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str = "master") -> list[Document]:
     data_path = Path(data_dir)
     clone_root = data_path / "raw" / "repos"
     processed_root = data_path / "processed"
@@ -178,7 +169,7 @@ def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str 
     repo_path = clone_repo(repo_url, clone_root, branch)
     repo_name = repo_path.name
 
-    documents = []
+    documents: list[Document] = []
 
     for path in repo_path.rglob("*"):
         if not path.is_file():
@@ -191,24 +182,14 @@ def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str 
         relative_path = str(path.relative_to(repo_path))
 
         metadata = {
-            "source_file": relative_path,
             "repo_url": repo_url,
             "repo_name": repo_name,
-            "file_type": path.suffix.lower() or path.name.lower(),
+            "source_path": relative_path,
+            "file_type": path.suffix.lower(),
             "section_headings": extract_markdown_headings(content),
             "char_count": len(content),
         }
-
-        documents.append(
-            RawDocument(
-                repo_url=repo_url,
-                repo_name=repo_name,
-                source_path=relative_path,
-                file_type=path.suffix.lower(),
-                content=content,
-                metadata=metadata,
-            )
-        )
+        documents.append(Document(page_content=content, metadata=metadata))
 
     processed_root.mkdir(parents=True, exist_ok=True)
 

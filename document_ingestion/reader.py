@@ -80,7 +80,7 @@ def validate_github_url(repo_url: str) -> None:
 def get_repo_name(repo_url: str) -> str:
     parts = urlparse(repo_url).path.strip("/").split("/")
     owner, repo = parts[0], parts[1].replace(".git", "")
-    return f"{owner}__{repo}"
+    return f"{owner}_{repo}"
 
 def get_head_branch(repo_url: str) -> str:
     result = subprocess.run(
@@ -105,8 +105,8 @@ def clone_repo(repo_url: str, clone_root: Path, branch: str = "master") -> Path:
     validate_github_url(repo_url)
     repo_name = get_repo_name(repo_url)
     repo_path = clone_root / repo_name
-    clone_root.mkdir(parents=True, exist_ok=True)
     if not repo_path.exists():
+        clone_root.mkdir(parents=True, exist_ok=True)
         run_git(["git", "clone", "--depth", "1", "--single-branch", "--branch", branch, repo_url, str(repo_path)])
         return repo_path
     git_dir = repo_path / ".git"
@@ -161,11 +161,11 @@ def extract_markdown_headings(text: str) -> list[str]:
     return headings
 
 
-def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str = "master") -> list[Document]:
+def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str | None = None) -> tuple[list[Document], str]:
     data_path = Path(data_dir)
-    clone_root = data_path / "raw" / "repos"
-    processed_root = data_path / "processed"
-
+    clone_root = data_path / "repos"
+    if branch is None:
+        branch = get_head_branch(repo_url)
     repo_path = clone_repo(repo_url, clone_root, branch)
     repo_name = repo_path.name
 
@@ -190,13 +190,4 @@ def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str 
             "char_count": len(content),
         }
         documents.append(Document(page_content=content, metadata=metadata))
-
-    processed_root.mkdir(parents=True, exist_ok=True)
-
-    output_path = processed_root / f"{repo_name}_documents.jsonl"
-
-    with output_path.open("w", encoding="utf-8") as f:
-        for doc in documents:
-            f.write(doc.page_content + "\n")
-
-    return documents
+    return (documents, repo_name)

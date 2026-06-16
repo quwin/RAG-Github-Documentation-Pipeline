@@ -1,14 +1,13 @@
 import os
 import getpass
 from uuid import uuid4
-from sparse_encoder import compute_sparse_vector
+from .sparse_encoder import compute_sparse_vector
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import (
     Distance,
     SparseIndexParams,
-    SparseVector,
     SparseVectorParams,
     VectorParams,
 )
@@ -51,14 +50,12 @@ def embed_unique_chunks(
                 )
             },
         )
-    unique_chunks: list[Document] = []
-    skipped = []
+    points = []
     for chunk in chunks:
+        # TODO use deterministic chunk IDs:
         chunk_id = getattr(chunk, "id", None) or str(uuid4())
-
         dense_vector = embeddings.embed_query(chunk.page_content)
         sparse_vector = compute_sparse_vector(chunk.page_content, model_id)
-
         # Dedupe search using dense vector only.
         # This avoids needing LangChain's QdrantVectorStore for ingestion.
         # TODO: Check if it's more effecient to use the sparse vector for this
@@ -73,23 +70,8 @@ def embed_unique_chunks(
             best = existing.points[0]
             similarity = best.score
             if similarity >= similarity_threshold:
-                skipped.append(
-                    {
-                        "reason": "near_duplicate",
-                        "chunk_id": chunk_id,
-                        "matched_id": best.id,
-                        "matched_source": (
-                            best.payload.get("metadata", {}).get("source_path")
-                            if best.payload
-                            else None
-                        ),
-                        "similarity": similarity,
-                    }
-                )
                 continue
-
-        unique_chunks.append(chunk)
-        point = models.PointStruct(
+        points.append(models.PointStruct(
             id=chunk_id,
             vector={
                 DENSE_VECTOR_NAME: dense_vector,
@@ -98,13 +80,12 @@ def embed_unique_chunks(
             payload={
                 "page_content": chunk.page_content,
                 "metadata": chunk.metadata,
+                "chunk_id": chunk.id,
             },
-        )
-        client.upsert(
-            collection_name=collection_name,
-            points=[point],
-            wait=True,
-        )
-    print(f"Inserted {len(unique_chunks)} chunks.")
-    print(f"Skipped {len(skipped)} near-duplicates.")
+        ))
+    client.upsert(
+        collection_name=collection_name,
+        points=points,
+        wait=True,
+    )
     return (client, embeddings)

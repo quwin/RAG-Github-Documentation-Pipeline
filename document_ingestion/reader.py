@@ -197,6 +197,6 @@ def load_documents_from_repo(repo_url: str, data_dir: str = "data", branch: str 
 
     with output_path.open("w", encoding="utf-8") as f:
         for doc in documents:
-            f.write(json.dumps(asdict(doc), ensure_ascii=False) + "\n")
+            f.write(doc.page_content + "\n")
 
     return documents

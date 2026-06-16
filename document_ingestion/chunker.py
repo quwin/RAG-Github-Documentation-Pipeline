@@ -2,7 +2,6 @@ from langchain_text_splitters import (RecursiveCharacterTextSplitter, MarkdownHe
 from langchain_core.documents import Document
 import re
 import hashlib
-import numpy
 
 
 def recursive_split_documents(docs: list[Document], chunk_size=1024, chunk_overlap=200) -> list[Document]:

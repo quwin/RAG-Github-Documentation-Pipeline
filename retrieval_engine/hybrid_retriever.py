@@ -1,15 +1,15 @@
-from qdrant_client.models import Prefetch, RrfQuery, Rrf, SparseVector
+from qdrant_client.models import Prefetch, RrfQuery, Rrf
 from qdrant_client import QdrantClient
 from langchain_openai import OpenAIEmbeddings
 from qdrant_client.http.models import QueryResponse
-from ..document_ingestion.sparse_encoder import compute_sparse_vector
+from document_ingestion.sparse_encoder import compute_sparse_vector
 
 def hybrid_retriever_query(
     client: QdrantClient,
     dense_embedding: OpenAIEmbeddings,
     query: str, 
     collection_name: str = "github_docs", 
-    top_k: int = 10,
+    top_k: int = 20,
     prefetch_k: int = 20,
     dense_weight: float = 1.0,
     sparse_weight: float = 1.0,

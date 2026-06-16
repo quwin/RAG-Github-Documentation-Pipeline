@@ -35,7 +35,7 @@ def header_chunk_documents(docs: list[Document], recursive=False, chunk_size=102
             document_splits = recursive_split_documents(document_splits, chunk_size, chunk_overlap)
         # Preserve metadata
         for split in document_splits:
-            split.metadata = doc.metadata
+            split.metadata = doc.metadata.copy()
             split.id = stable_chunk_id(split)
         new_documents.extend(document_splits)
     return new_documents

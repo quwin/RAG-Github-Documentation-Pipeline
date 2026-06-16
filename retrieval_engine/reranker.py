@@ -10,9 +10,6 @@ def rerank_results(
     retrieved_results: QueryResponse,
     top_k: int = 5,
 ) -> list[Document]:
-    if not torch.cuda.is_available():
-        print("Warning: No GPU found. Please add GPU to your notebook")
-
     cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2")
     cross_inputs: list[PairInput] = []
     candidate_docs: list[Document] = []

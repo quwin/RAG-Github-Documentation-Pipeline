@@ -33,6 +33,7 @@ def embed_unique_chunks(
         api_key=os.getenv("QDRANT_API_KEY"),
         timeout=120,
     )
+    print("Qdrant client opened!")
     vector_size = 1536
     if not client.collection_exists(collection_name):
         client.create_collection(
@@ -51,10 +52,11 @@ def embed_unique_chunks(
             },
         )
     points = []
-    for chunk in chunks:
-        # TODO use deterministic chunk IDs:
-        chunk_id = getattr(chunk, "id", None) or str(uuid4())
-        dense_vector = embeddings.embed_query(chunk.page_content)
+    print(f"Embedding {len(chunks)} dense vectors: ")
+    texts = [chunk.page_content for chunk in chunks]
+    dense_vectors = embeddings.embed_documents(texts)
+    print(f"Creating {len(chunks)} points:")
+    for chunk, dense_vector in zip(chunks, dense_vectors):
         sparse_vector = compute_sparse_vector(chunk.page_content, model_id)
         # Dedupe search using dense vector only.
         # This avoids needing LangChain's QdrantVectorStore for ingestion.
@@ -64,7 +66,7 @@ def embed_unique_chunks(
             query=dense_vector,
             using=DENSE_VECTOR_NAME,
             limit=1,
-            with_payload=True,
+            with_payload=False,
         )
         if existing.points:
             best = existing.points[0]
@@ -72,7 +74,7 @@ def embed_unique_chunks(
             if similarity >= similarity_threshold:
                 continue
         points.append(models.PointStruct(
-            id=chunk_id,
+            id=uuid4(),
             vector={
                 DENSE_VECTOR_NAME: dense_vector,
                 SPARSE_VECTOR_NAME: sparse_vector,
@@ -83,9 +85,11 @@ def embed_unique_chunks(
                 "chunk_id": chunk.id,
             },
         ))
-    client.upsert(
-        collection_name=collection_name,
-        points=points,
-        wait=True,
-    )
+    print(f"Upserting {len(points)} points:")
+    if points:
+        client.upsert(
+            collection_name=collection_name,
+            points=points,
+            wait=False,
+        )
     return (client, embeddings)

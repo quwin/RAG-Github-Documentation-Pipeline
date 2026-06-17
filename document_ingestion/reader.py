@@ -43,6 +43,7 @@ EXCLUDE_DIRS = {
     "__pycache__",
     ".pytest_cache",
     ".mypy_cache",
+    "CMakeLists"
 }
 
 EXCLUDE_EXTENSIONS = {

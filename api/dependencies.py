@@ -4,6 +4,7 @@ from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
 from langchain_anthropic import ChatAnthropic
 from transformers import AutoTokenizer, AutoModelForMaskedLM
+from sentence_transformers import CrossEncoder
 
 @lru_cache
 def get_qdrant_client() -> QdrantClient:
@@ -30,3 +31,7 @@ def get_llm_model(model: str, max_tokens: int, temperature:float):
 @lru_cache
 def get_splade_model(model_id: str):
     return (AutoTokenizer.from_pretrained(model_id), AutoModelForMaskedLM.from_pretrained(model_id))
+
+@lru_cache
+def get_cross_encoder(model_id: str = "cross-encoder/ms-marco-MiniLM-L6-v2"):
+    return CrossEncoder(model_id)

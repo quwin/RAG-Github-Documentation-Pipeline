@@ -1,4 +1,4 @@
-from langchain_text_splitters import (RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter, CharacterTextSplitter)
+from langchain_text_splitters import (RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter, PythonCodeTextSplitter)
 from langchain_core.documents import Document
 import re
 import hashlib

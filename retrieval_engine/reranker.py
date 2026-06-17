@@ -1,14 +1,14 @@
 from langchain_core.documents import Document
 from qdrant_client.http.models import QueryResponse
-from sentence_transformers import CrossEncoder
 from sentence_transformers.base.modality_types import PairInput
+from api.dependencies import get_cross_encoder
 
 def rerank_results(
     query: str,
     retrieved_results: QueryResponse,
     top_k: int = 5,
 ) -> list[Document]:
-    cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2")
+    cross_encoder = get_cross_encoder()
     cross_inputs: list[PairInput] = []
     candidate_docs: list[Document] = []
     for point in retrieved_results.points:

@@ -4,7 +4,8 @@ from uuid import uuid4
 from .sparse_encoder import compute_sparse_vector
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
-from qdrant_client import QdrantClient, models
+from qdrant_client import  models
+from api.dependencies import get_qdrant_client
 from qdrant_client.http.models import (
     Distance,
     SparseIndexParams,
@@ -16,28 +17,13 @@ from qdrant_client.http.models import (
 DENSE_VECTOR_NAME = "text-dense"
 SPARSE_VECTOR_NAME = "text-sparse"
 
-_QDRANT_CACHE = {}
-
-def get_qdrant_client(
-    url: str = "https://f028c8c9-ff23-4d61-a751-7dd10e1c066a.us-east-1-1.aws.cloud.qdrant.io", 
-    timeout: int = 120
-) -> QdrantClient:
-    if not os.getenv("QDRANT_API_KEY"):
-        os.environ["QDRANT_API_KEY"] = getpass.getpass("Enter your Qdrant API key: ")
-    if url not in _QDRANT_CACHE:
-        _QDRANT_CACHE[url] = QdrantClient(
-        url=url,
-        api_key=os.getenv("QDRANT_API_KEY"),
-        timeout=timeout,
-    )
-    return _QDRANT_CACHE[url]
-
 def embed_unique_chunks(
     chunks: list[Document],
     collection_name: str,
+    embeddings: OpenAIEmbeddings,
     similarity_threshold: float = 0.95,
     model_id = "naver/splade-cocondenser-ensembledistil"
-) -> tuple[QdrantClient, OpenAIEmbeddings]:
+):
     if not chunks:
         raise ValueError("No documents provided to embed.")
     client = get_qdrant_client()
@@ -65,7 +51,6 @@ def embed_unique_chunks(
     texts = [chunk.page_content for chunk in chunks]
     if not os.getenv("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     dense_vectors = embeddings.embed_documents(texts)
     unique_dense_vectors: list[list[float] | None] = [None] * chunk_quantity
     # Dedupe search using dense vector only.
@@ -83,6 +68,8 @@ def embed_unique_chunks(
         if response.points:
             if response.points[0].score < similarity_threshold:
                 unique_dense_vectors[i] = dense_vectors[i]
+        else:
+            unique_dense_vectors[i] = dense_vectors[i]
     
     print(f"Creating {len(chunks)} points:")
     for chunk, dense_vector in zip(chunks, unique_dense_vectors):

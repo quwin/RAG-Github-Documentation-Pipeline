@@ -1,17 +1,6 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
 from qdrant_client.models import SparseVector
-
-_MODEL_CACHE = {}
-
-def get_splade_model(model_id: str):
-    if model_id not in _MODEL_CACHE:
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = AutoModelForMaskedLM.from_pretrained(model_id)
-        model.eval()
-        _MODEL_CACHE[model_id] = (tokenizer, model)
-    return _MODEL_CACHE[model_id]
-
+from api.dependencies import get_splade_model
 
 def compute_sparse_vector(
     text: str,

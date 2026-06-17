@@ -1,14 +1,15 @@
 def format_to_citation_response(content: list[dict]) -> list[dict]:
     citations = []
-    for i, responses in enumerate(content):
-        if (in_text := responses.get("citations")) is not None:
-            citations.append({
-                "type": "text",
-                "text": f"""Citation index: {i}
-                    Claim: {responses["text"]}
-                    Cited Texts: {". ".join(cite.get("cited_text") for cite in in_text) }
-                """
-            })
+    if content:
+        for i, responses in enumerate(content):
+            if (in_text := responses.get("citations")) is not None:
+                citations.append({
+                    "type": "text",
+                    "text": f"""Citation index: {i}
+                        Claim: {responses["text"]}
+                        Cited Texts: {". ".join(cite.get("cited_text") for cite in in_text) }
+                    """
+                })
     return citations
 
 def system_eval_prompt() -> str:

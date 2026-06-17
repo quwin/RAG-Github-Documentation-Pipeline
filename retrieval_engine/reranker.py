@@ -2,8 +2,6 @@ from langchain_core.documents import Document
 from qdrant_client.http.models import QueryResponse
 from sentence_transformers import CrossEncoder
 from sentence_transformers.base.modality_types import PairInput
-import torch
-
 
 def rerank_results(
     query: str,

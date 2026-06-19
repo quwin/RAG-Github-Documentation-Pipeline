@@ -387,17 +387,7 @@ These representations support different retrieval strengths.
 
 Dense embeddings are generated with OpenAI embeddings.
 
-The dense vector is stored in Qdrant under this vector name:
-
-```text
-text-dense
-```
-
-The expected dense vector size is:
-
-```text
-1536
-```
+The expected dense vector size is 1536 dimensions.
 
 Dense retrieval is useful for semantic matching. It can retrieve relevant chunks even when the user's wording differs from the documentation.
 
@@ -418,12 +408,6 @@ A dense retriever can often connect these semantically related statements.
 ## Sparse Encoding
 
 Sparse vectors are generated with SPLADE.
-
-The sparse vector is stored in Qdrant under this vector name:
-
-```text
-text-sparse
-```
 
 Sparse retrieval is useful for exact identifier matching.
 
@@ -490,11 +474,7 @@ This design allows a single collection to support both semantic vector search an
 
 Before inserting chunks, the embedder can check whether similar chunks already exist.
 
-The similarity threshold is:
-
-```text
-0.95
-```
+The similarity threshold, by default is 95% (0.95):
 
 If an existing chunk is above the threshold, the new chunk can be skipped.
 

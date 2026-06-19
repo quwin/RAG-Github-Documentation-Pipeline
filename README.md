@@ -2,7 +2,7 @@
 
 A production-oriented Retrieval-Augmented Generation pipeline for ingesting public GitHub repository documentation, indexing it with hybrid dense and sparse retrieval, and answering questions with grounded citations, source metadata, and confidence scores.
 
-This project is designed for technical documentation search, where exact terms such as function names, configuration keys, class names, CLI flags, file paths, and error messages matter as much as semantic similarity.
+This project is designed for both architectural and technical documentation search, where exact terms such as function names, configuration keys, class names, CLI flags, file paths, and error messages matter as much as semantic similarity.
 
 ---
 

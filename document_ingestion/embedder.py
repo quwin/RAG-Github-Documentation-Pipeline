@@ -22,14 +22,41 @@ def embed_unique_chunks(
     collection_name: str,
     embeddings: OpenAIEmbeddings,
     similarity_threshold: float = 0.95,
-    model_id = "naver/splade-cocondenser-ensembledistil"
+    model_id: str  = "naver/splade-cocondenser-ensembledistil",
+    erase_prior_embeddings: bool = False
 ):
     if not chunks:
         raise ValueError("No documents provided to embed.")
     client = get_qdrant_client()
     print("Qdrant client opened!")
     vector_size = 1536
-    if not client.collection_exists(collection_name):
+    collection_exists = erase_prior_embeddings and client.collection_exists(collection_name)
+    if erase_prior_embeddings:
+        client.delete_collection(collection_name=collection_name, timeout=120)
+    points = []
+    chunk_quantity = len(chunks)
+    print(f"Embedding {chunk_quantity} dense vectors: ")
+    texts = [chunk.page_content for chunk in chunks]
+    dense_vectors = embeddings.embed_documents(texts)
+    ## TODO: don't copy dense_vectors
+    unique_dense_vectors: list[list[float] | None] = [dense_vector for dense_vector in dense_vectors]
+    if collection_exists:
+        # Dedupe search using dense vector only.
+        # This avoids needing LangChain's QdrantVectorStore for ingestion.
+        existing = client.query_batch_points(
+                collection_name=collection_name,
+                requests=[QueryRequest(
+                    query=dense_vector,
+                    using=DENSE_VECTOR_NAME,
+                    limit=1,
+                    with_payload=False,
+                ) for dense_vector in dense_vectors]
+            )
+        for i, response in enumerate(existing):
+            if response.points:
+                if response.points[0].score >= similarity_threshold:
+                    unique_dense_vectors[i] = None
+    else:
         client.create_collection(
             collection_name=collection_name,
             vectors_config={
@@ -45,31 +72,6 @@ def embed_unique_chunks(
                 )
             },
         )
-    points = []
-    chunk_quantity = len(chunks)
-    print(f"Embedding {chunk_quantity} dense vectors: ")
-    texts = [chunk.page_content for chunk in chunks]
-    if not os.getenv("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
-    dense_vectors = embeddings.embed_documents(texts)
-    unique_dense_vectors: list[list[float] | None] = [None] * chunk_quantity
-    # Dedupe search using dense vector only.
-    # This avoids needing LangChain's QdrantVectorStore for ingestion.
-    existing = client.query_batch_points(
-            collection_name=collection_name,
-            requests=[QueryRequest(
-                query=dense_vector,
-                using=DENSE_VECTOR_NAME,
-                limit=1,
-                with_payload=False,
-            ) for dense_vector in dense_vectors]
-        )
-    for i, response in enumerate(existing):
-        if response.points:
-            if response.points[0].score < similarity_threshold:
-                unique_dense_vectors[i] = dense_vectors[i]
-        else:
-            unique_dense_vectors[i] = dense_vectors[i]
     
     print(f"Creating {len(chunks)} points:")
     for chunk, dense_vector in zip(chunks, unique_dense_vectors):

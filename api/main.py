@@ -2,7 +2,8 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 
-from .schemas import AskRequest, AskResponse, IngestRequest
+from .schemas import AskRequest, AskResponse, IngestRequest, DocumentsResponse
+from .document_service import list_indexed_documents
 from .qa_service import answer_question
 from .ingest_service import ingest_repo
 
@@ -32,8 +33,9 @@ async def ingest(request: IngestRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(
         ingest_repo,
         request.repo_url,
-        request.branch,
         request.recursive_chunking,
+        request.erase_prior_embeddings,
+        request.branch,
     )
     return {
         "status": "queued",
@@ -52,11 +54,12 @@ async def ask(request: AskRequest):
         sparse_weight=request.sparse_weight,
     )
 
-@app.get("/v1/documents")
-def list_documents(collection_name: str):
-    # Initial placeholder.
-    # Implement this by scrolling Qdrant payloads and grouping by source_path.
-    return {
-        "collection_name": collection_name,
-        "documents": [],
-    }
+@app.get("/v1/documents", response_model=DocumentsResponse)
+def documents(
+    collection_name: str,
+    include_chunk_ids: bool = False,
+):
+    return list_indexed_documents(
+        collection_name=collection_name,
+        include_chunk_ids=include_chunk_ids,
+    )

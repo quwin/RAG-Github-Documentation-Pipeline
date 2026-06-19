@@ -4,6 +4,7 @@ from typing import Any
 class IngestRequest(BaseModel):
     repo_url: str
     branch: str | None = None
+    erase_prior_embeddings: bool = False
     recursive_chunking: bool = True
 
 
@@ -38,3 +39,21 @@ class AskResponse(BaseModel):
     answer: str
     sources: list[SourceChunk]
     confidence: ConfidenceScores | None = None
+
+class DocumentSummary(BaseModel):
+    source_path: str
+    repo_url: str | None = None
+    repo_name: str | None = None
+    file_type: str | None = None
+    char_count: int | None = None
+    section_headings: list[str] = Field(default_factory=list)
+    chunk_count: int
+    chunk_ids: list[str] = Field(default_factory=list)
+    text_preview: str | None = None
+
+
+class DocumentsResponse(BaseModel):
+    collection_name: str
+    document_count: int
+    total_chunks: int
+    documents: list[DocumentSummary]

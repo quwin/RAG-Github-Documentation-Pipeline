@@ -4,6 +4,8 @@ A production-oriented Retrieval-Augmented Generation pipeline for ingesting publ
 
 This project is designed for both architectural and technical documentation search, where exact terms such as function names, configuration keys, class names, CLI flags, file paths, and error messages matter as much as semantic similarity.
 
+Interested to see the project in action? Check out the live deployment on my portfolio website at https://quwin.dev
+
 ---
 
 ## Highlights
